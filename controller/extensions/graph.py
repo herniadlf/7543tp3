@@ -1,14 +1,26 @@
 class Graph:
     def __init__(self):
-        self.switches = {}
         self.links = []
         self.routes = {}
+        self.switches = {}
     
     def add_switch(self, switch):
         self.switches[switch.dpid] = switch
     
     def add_link(self, link):
         self.links.append(link)
+
+    def ports_in_switch(self, dpid):
+        ports = []
+
+        for link in self.links:
+            if link.dpid1 == dpid:
+                ports.append(link.port1)
+            
+            if link.dpid2 == dpid:
+                ports.append(link.port2)
+
+        return ports
 
     def get_route(self, event):
         """
@@ -34,11 +46,13 @@ class Graph:
         }
         """
         routes_from = self.routes.get(packet.src, None)
-        if self.routes.get(packet.src, None) is not None:
+        route_to = None
+        
+        if routes_from is not None:
             route_to = routes_from.get(packet.dst, None)
             if route_to is not None:
                 if route_to.get(packet.payload.protocol, None) is not None:
-                    return route_to.get(packet.payload.protocol, None)
+                    return route_to.get(packet.payload.protocol)
 
         route = self.find_route(packet)
 
@@ -71,27 +85,23 @@ class Graph:
         SWTICH (dpid2, port2) ----LINK---- (dpid1, port1) HOST
         """
 
-        for link in self.links:
-            print("Informaccion de los links")
-            print("dpid")
-            print(link.dpid1)
-            print(link.dpid2)
-            print("Port")
-            print(link.port1)
-            print(link.port2)
-
+        for switch in self.switches.values():
+            if switch.host == packet.src:
+                first_dpid = switch.dpid
+            if switch.host == packet.dst:
+                last_dpid = switch.dpid
 
         for link in self.links:
-            if link.dpid2 == packet.src:
+            if link.dpid2 == first_dpid:
                 port = 1 if not link.port1 == 1 else 2 
                 first_node = Node(link.dpid1, port) 
-            elif link.dpid1 == packet.src:
+            elif link.dpid1 == first_dpid:
                 port = 1 if not link.port1 == 1 else 2 
                 first_node = Node(link.dpid2, port)
 
-            if link.dpid2 == packet.dst:
+            if link.dpid2 == last_dpid:
                 last_node = Node(link.dpid1, link.port1) 
-            elif link.dpid1 == packet.dst:
+            elif link.dpid1 == last_dpid:
                 last_node = Node(link.dpid2, link.port2) 
 
         
@@ -106,3 +116,11 @@ class Node:
     def __init__(self, dpid, port):
         self.dpid = dpid
         self.port = port
+
+class Link(object):
+    def __init__(self, link):
+        self.dpid1 = link.dpid1
+        self.port1 = link.port1
+        self.dpid2 = link.dpid2
+        self.port2 = link.port2
+        self.weight = 0

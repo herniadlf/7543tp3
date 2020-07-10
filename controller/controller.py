@@ -4,7 +4,7 @@ import pox.openflow.spanning_tree
 import pox.forwarding.l2_learning
 from pox.lib.util import dpid_to_str
 from extensions.switch import SwitchController
-from extensions.link import Link
+from extensions.graph import Link
 from extensions.graph import Graph
 
 log = core.getLogger()
