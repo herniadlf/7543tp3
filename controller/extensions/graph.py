@@ -85,12 +85,25 @@ class Graph:
         SWTICH (dpid2, port2) ----LINK---- (dpid1, port1) HOST
         """
 
-        # Encuentro cual es el primer switch y el último
+        # Encuentro cual es el primer switch y el ultimo
+        first_dpid = None
+        last_dpid = None
+        print("Trato de encontrar el origen y destino")
         for switch in self.switches.values():
-            if switch.host == packet.src:
+            print("Inicio iteracion")
+            print("Packet src", packet.src)
+            print("Packet dst", packet.dst)
+            print("Packet payload src ip", packet.payload.srcip)
+            print("Packet payload dst ip", packet.payload.dstip)
+            hosts = [item[0] for item in switch.connected]
+            print("Hosts ", hosts)
+            if packet.src in hosts:
                 first_dpid = switch.dpid
-            if switch.host == packet.dst:
+            if packet.dst in hosts:
                 last_dpid = switch.dpid
+
+        print("Comienzo " + str(first_dpid))
+        print("Fin " + str(last_dpid))
 
 
         """
@@ -117,22 +130,22 @@ class Graph:
 
         # Necesito encontrar todos los switches que llegan al last_dpid
         routes = self.build_routes(last_dpid, first_dpid, [])
-
-
-
+        print("Las rutas son..")
+        routes = {route for route in map(tuple, routes) if route[len(route)-1] == first_dpid}
+        print(routes)
 
         
         return [
         ]
+
+
+    def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
         """
+            cuando llego al final, yo tengo un array que tiene 1 array con [s1]
                         s1 (first_dpid)
                 s2                         s3
             s4      s5      s6(last_dpid)       s7
         """
-
-    # cuando llego al final, yo tengo un array que tiene 1 array con [s1]
-    #
-    def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
         visited_dpid.append(actual_dpid)
         # Condicion de corte: Si llegue al destino, devuelvo un array solo con el destino
         if actual_dpid == dst_dpid:
@@ -142,21 +155,19 @@ class Graph:
         for link in self.links:
             if link.dpid1 == actual_dpid and not link.dpid2 in visited_dpid:
                 next_dpid = link.dpid2
-                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid.copy()):
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
                     actual_route = [actual_dpid]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
             elif link.dpid2 == actual_dpid and not link.dpid1 in visited_dpid:
                 next_dpid = link.dpid1
-                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid.copy()):
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
                     actual_route = [actual_dpid]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
 
-        print("Las rutas son..")
-        print(routes)
         return routes
 
 

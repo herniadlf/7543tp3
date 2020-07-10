@@ -10,8 +10,7 @@ class SwitchController:
     # El SwitchController se agrega como handler de los eventos del switch
     self.connection.addListeners(self)
     self.graph = graph
-    self.host = None
-    self.host_port = None
+    self.connected = set()
 
   def _handle_PacketIn(self, event):
     """
@@ -20,20 +19,23 @@ class SwitchController:
     """
     packet = event.parsed
     log.info("Packet arrived to switch %s from %s to %s", self.dpid, packet.src, packet.dst)
-
+    
     # Agrego el host conectado al switch
     if (event.port not in self.graph.ports_in_switch(self.dpid)):
-        self.host = packet.src
-        self.host_port = event.port
+        self.connected.add((packet.src, event.port))
 
     # Solo IPv4
     if packet.type != packet.IP_TYPE:
         return
 
-    # Si llega un paquete desde un switch y tengo un host conectado le mando el paquete
-    if (self.host is not None and event.port != self.host_port):
-      port = self.host_port
-    else:
+    port = None
+
+    for connection in self.connected:
+      if (packet.dst == connection[0]):
+        # Si llega un paquete desde un switch y tengo un host conectado le mando el paquete
+        port = connection[1]
+
+    if port is None:
       # Si llega desde un switch o host y no tengo host conectado busco la ruta
       route = self.graph.get_route(event)
       port = self.get_port(route)
