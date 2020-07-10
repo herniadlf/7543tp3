@@ -5,12 +5,7 @@ class Link(object):
         self.link = link
         self.weight = 0
 
-    def __getattr__(self, key):
+    def __getattribute__(self, key):
         if key in LINK_ATTRIBUTES:
-            return self.link.__getattr__(key)
-        return super(Link, self).__getattr__(key)
-
-    def __setattr__(self, key, value):
-        if key in LINK_ATTRIBUTES:
-            return self.link.__setattr__(key, value)
-        return super(Link, self).__setattr__(key, value)
+            return self.link.__getattribute__(key)
+        return super(Link, self).__getattribute__(key)
