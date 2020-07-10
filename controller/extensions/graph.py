@@ -129,14 +129,17 @@ class Graph:
         """
 
         # Necesito encontrar todos los switches que llegan al last_dpid
-        routes = self.build_routes(last_dpid, first_dpid, [])
+        routes = self.build_routes(first_dpid, last_dpid, [])
         print("Las rutas son..")
-        routes = {route for route in map(tuple, routes) if route[len(route)-1] == first_dpid}
         print(routes)
+        routes = {route for route in map(tuple,routes) if route[len(route)-1][0] == last_dpid}
 
+        print(routes)
+        route = map(lambda t: Node(t[0], t[1]), list(routes)[0])
+
+        print(route)
         
-        return [
-        ]
+        return route
 
 
     def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
@@ -149,21 +152,21 @@ class Graph:
         visited_dpid.append(actual_dpid)
         # Condicion de corte: Si llegue al destino, devuelvo un array solo con el destino
         if actual_dpid == dst_dpid:
-            return [[dst_dpid]]
+            return [[(dst_dpid, -1)]]
 
         routes = []
         for link in self.links:
             if link.dpid1 == actual_dpid and not link.dpid2 in visited_dpid:
                 next_dpid = link.dpid2
                 for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
-                    actual_route = [actual_dpid]
+                    actual_route = [(actual_dpid, link.port1)]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
             elif link.dpid2 == actual_dpid and not link.dpid1 in visited_dpid:
                 next_dpid = link.dpid1
                 for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
-                    actual_route = [actual_dpid]
+                    actual_route = [(actual_dpid, link.port2)]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
@@ -172,7 +175,7 @@ class Graph:
 
 
 class Node:
-    def __init__(self, dpid, port):
+    def __init__(self, dpid, port=None):
         self.dpid = dpid
         self.port = port
 
