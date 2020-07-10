@@ -116,19 +116,48 @@ class Graph:
         """
 
         # Necesito encontrar todos los switches que llegan al last_dpid
-        visited = []
-        previous = []
-        for link in self.links:
-            if link.dpid1 == last_dpid:
-                previous.append(Node(link.dpid2, link.port2))
-            elif link.dpid2 == last_dpid:
-                previous.append(Node(link.dpid1, link.port1))
-        
+        routes = self.build_routes(last_dpid, first_dpid, [])
+
+
+
 
         
         return [
         ]
+        """
+                        s1 (first_dpid)
+                s2                         s3
+            s4      s5      s6(last_dpid)       s7
+        """
 
+    # cuando llego al final, yo tengo un array que tiene 1 array con [s1]
+    #
+    def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
+        visited_dpid.append(actual_dpid)
+        # Condicion de corte: Si llegue al destino, devuelvo un array solo con el destino
+        if actual_dpid == dst_dpid:
+            return [[dst_dpid]]
+
+        routes = []
+        for link in self.links:
+            if link.dpid1 == actual_dpid and not link.dpid2 in visited_dpid:
+                next_dpid = link.dpid2
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid.copy()):
+                    actual_route = [actual_dpid]
+                    for dpid in route:
+                        actual_route.append(dpid)
+                    routes.append(actual_route)
+            elif link.dpid2 == actual_dpid and not link.dpid1 in visited_dpid:
+                next_dpid = link.dpid1
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid.copy()):
+                    actual_route = [actual_dpid]
+                    for dpid in route:
+                        actual_route.append(dpid)
+                    routes.append(actual_route)
+
+        print("Las rutas son..")
+        print(routes)
+        return routes
 
 
 class Node:
