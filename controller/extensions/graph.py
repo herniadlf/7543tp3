@@ -85,29 +85,48 @@ class Graph:
         SWTICH (dpid2, port2) ----LINK---- (dpid1, port1) HOST
         """
 
+        # Encuentro cual es el primer switch y el último
         for switch in self.switches.values():
             if switch.host == packet.src:
                 first_dpid = switch.dpid
             if switch.host == packet.dst:
                 last_dpid = switch.dpid
 
-        for link in self.links:
-            if link.dpid2 == first_dpid:
-                port = 1 if not link.port1 == 1 else 2 
-                first_node = Node(link.dpid1, port) 
-            elif link.dpid1 == first_dpid:
-                port = 1 if not link.port1 == 1 else 2 
-                first_node = Node(link.dpid2, port)
 
-            if link.dpid2 == last_dpid:
-                last_node = Node(link.dpid1, link.port1) 
-            elif link.dpid1 == last_dpid:
-                last_node = Node(link.dpid2, link.port2) 
+        """
+                        s1 (first_dpid)
+                s2                         s3
+            s4      s5      s6(last_dpid)       s7
+        """
+
+        """
+        1 paso: Empezamos desde s6 y encontramos a s2 y s3
+        2 paso: Empezamos con s2: s1, s4, s5, s7
+
+        Caminos posibles:
+            s6 s2 s4 s3 s1
+            s6 s2 s5 s3 s1
+            s6 s2 s7 s3 s1
+            s6 s2 s1
+
+            s6 s3 s4 s2 s1
+            s6 s3 s5 s2 s1
+            s6 s3 s7 s2 s1
+            s6 s3 s1
+        """
+
+        # Necesito encontrar todos los switches que llegan al last_dpid
+        visited = []
+        previous = []
+        for link in self.links:
+            if link.dpid1 == last_dpid:
+                previous.append(Node(link.dpid2, link.port2))
+            elif link.dpid2 == last_dpid:
+                previous.append(Node(link.dpid1, link.port1))
+        
 
         
         return [
-            first_node,
-            last_node
         ]
 
 
@@ -123,4 +142,4 @@ class Link(object):
         self.port1 = link.port1
         self.dpid2 = link.dpid2
         self.port2 = link.port2
-        self.weight = 0
+        self.weight = 1
