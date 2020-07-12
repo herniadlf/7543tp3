@@ -45,6 +45,7 @@ class Graph:
             }
         }
         """
+        # Primero busco si ya tengo cargado en mis rutas segun la key que tiene el paquete
         routes_from = self.routes.get(packet.src, None)
         route_to = None
         
@@ -52,10 +53,13 @@ class Graph:
             route_to = routes_from.get(packet.dst, None)
             if route_to is not None:
                 if route_to.get(packet.payload.protocol, None) is not None:
+                    # Si la tengo cargada, listo!
                     return route_to.get(packet.payload.protocol)
 
+        # si no la tengo cargada, tengo que calcular la ruta que tiene que hacer
         route = self.find_route(packet)
 
+        # una vez encontrada, la cargo en las rutas del grafo
         if route_to is None:
             route_to = {}
 
@@ -70,90 +74,62 @@ class Graph:
 
         return route
 
-    def find_route(self, packet, visited = []):
-        """
-        HOST1 ----LINK1---- (dpid1, port1) SWITCH1
-        
-        SWITCH1 (dpid1, port2) ----LINK2---- (dpid2, port1) SWITCH2
-
-        SWITCH2 (dpid2, port2) ----LINK3---- HOST2
-
-
-        ----------------------
-        SWTICH (dpid1, port1) ----LINK---- (dpid2, port2) HOST
-        
-        SWTICH (dpid2, port2) ----LINK---- (dpid1, port1) HOST
-        """
-
+    def find_route(self, packet):
         # Encuentro cual es el primer switch y el ultimo
         first_dpid = None
         last_dpid = None
-        print("Trato de encontrar el origen y destino")
         for switch in self.switches.values():
-            print("Inicio iteracion")
-            print("Packet src", packet.src)
-            print("Packet dst", packet.dst)
-            print("Packet payload src ip", packet.payload.srcip)
-            print("Packet payload dst ip", packet.payload.dstip)
-            hosts = [item[0] for item in switch.connected]
-            print("Hosts ", hosts)
+            hosts = [item[0] for item in switch.connected_hosts]
             if packet.src in hosts:
                 first_dpid = switch.dpid
             if packet.dst in hosts:
                 last_dpid = switch.dpid
 
-        print("Comienzo " + str(first_dpid))
-        print("Fin " + str(last_dpid))
-
-
-        """
-                        s1 (first_dpid)
-                s2                         s3
-            s4      s5      s6(last_dpid)       s7
-        """
-
-        """
-        1 paso: Empezamos desde s6 y encontramos a s2 y s3
-        2 paso: Empezamos con s2: s1, s4, s5, s7
-
-        Caminos posibles:
-            s6 s2 s4 s3 s1
-            s6 s2 s5 s3 s1
-            s6 s2 s7 s3 s1
-            s6 s2 s1
-
-            s6 s3 s4 s2 s1
-            s6 s3 s5 s2 s1
-            s6 s3 s7 s2 s1
-            s6 s3 s1
-        """
-
-        # Necesito encontrar todos los switches que llegan al last_dpid
+        # Busco todos los caminos que llegan al ultimo switch mediante metodo recursivo
         routes = self.build_routes(first_dpid, last_dpid, [])
-        print("Las rutas son..")
-        print(routes)
-        routes = {route for route in map(tuple,routes) if route[len(route)-1][0] == last_dpid}
 
-        print(routes)
-        route = map(lambda t: Node(t[0], t[1]), list(routes)[0])
+        # Consegui varias rutas, me quedo con las que efectivamente terminan en el ultimo swtich
+        # a su vez, dejo calculado en una tupla el costo de cada una de estas rutas
+        filtered_routes = []
+        for route in map(tuple, routes):
+            if route[len(route)-1][0] == last_dpid:
+                cost = 0
+                for switch in route:
+                    dpid = switch[0]
+                    cost += self.switches[dpid].weight
+                route_cost_tuple = (route, cost)
+                filtered_routes.append(route_cost_tuple)
 
-        print(route)
-        
+        # utilizo el costo para obtener el costo minimo
+        less_cost_route = self.compare_routes(filtered_routes)
+
+        route = []
+        # ya me quede con una ruta, ahora queda mapear a nodos
+        # actualizo el peso que tiene cada switch de la ruta
+        for each_route_node in less_cost_route:
+            as_node = Node(each_route_node[0], each_route_node[1])
+            route.append(as_node)
+            self.update_weight(as_node)
+
         return route
+
+    def compare_routes(self, routes):
+        less_cost_route = routes[0]
+        for route_cost in routes:
+            cost = route_cost[1]
+            if less_cost_route[1] > cost:
+                less_cost_route = route_cost
+
+        return less_cost_route[0]
 
 
     def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
-        """
-            cuando llego al final, yo tengo un array que tiene 1 array con [s1]
-                        s1 (first_dpid)
-                s2                         s3
-            s4      s5      s6(last_dpid)       s7
-        """
         visited_dpid.append(actual_dpid)
         # Condicion de corte: Si llegue al destino, devuelvo un array solo con el destino
         if actual_dpid == dst_dpid:
-            return [[(dst_dpid, -1)]]
+            return [[(dst_dpid, -1)]] # pongo port=-1 porque el ultimo puerto ya lo conozco
 
+        # voy recorriendo las aristas del grafo
         routes = []
         for link in self.links:
             if link.dpid1 == actual_dpid and not link.dpid2 in visited_dpid:
@@ -173,16 +149,25 @@ class Graph:
 
         return routes
 
+    def update_weight(self, src_node):
+        switch = self.switches.get(src_node.dpid)
+        switch.weight += 1
+
 
 class Node:
     def __init__(self, dpid, port=None):
         self.dpid = dpid
         self.port = port
 
+    def __str__(self):
+        return str(self.dpid) + " " + str(self.port)
+
 class Link(object):
+    def __str__(self):
+        return str(self.dpid1) + " " + str(self.port1) + " " + str(self.dpid2) + " " + str(self.port2)
+
     def __init__(self, link):
         self.dpid1 = link.dpid1
         self.port1 = link.port1
         self.dpid2 = link.dpid2
         self.port2 = link.port2
-        self.weight = 1

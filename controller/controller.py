@@ -33,7 +33,6 @@ class Controller:
     Se encarga de crear un nuevo switch controller para manejar los eventos de cada switch
     """
     log.info("Switch %s has come up.", dpid_to_str(event.dpid))
-    print(event)
     if (event.connection not in self.connections):
       self.connections.add(event.connection)
       sw = SwitchController(event.dpid, event.connection, self.graph)

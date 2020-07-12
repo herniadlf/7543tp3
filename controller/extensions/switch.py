@@ -10,7 +10,8 @@ class SwitchController:
     # El SwitchController se agrega como handler de los eventos del switch
     self.connection.addListeners(self)
     self.graph = graph
-    self.connected = set()
+    self.connected_hosts = set()
+    self.weight = 0
 
   def _handle_PacketIn(self, event):
     """
@@ -22,29 +23,27 @@ class SwitchController:
     
     # Agrego el host conectado al switch
     if (event.port not in self.graph.ports_in_switch(self.dpid)):
-        self.connected.add((packet.src, event.port))
+        self.connected_hosts.add((packet.src, event.port))
 
-    # Solo IPv4
+    # Solo IPv4, con IPv6 estamos teniendo lio
     if packet.type != packet.IP_TYPE:
         return
 
     port = None
 
-    for connection in self.connected:
+    for connection in self.connected_hosts:
       if (packet.dst == connection[0]):
-        # Si llega un paquete desde un switch y tengo un host conectado le mando el paquete
+        # Si llega un paquete a un switch, y el dst es un host que yo tengo conectado
+        # como es topo fat tree, se que debo mandarselo a ese host directamente
         port = connection[1]
 
     if port is None:
       # Si llega desde un switch o host y no tengo host conectado busco la ruta
       route = self.graph.get_route(event)
-      port = self.get_port(route)
+      port = self.process_nodes(route)
 
 
-    print('Switch ' + str(self.dpid))
-    print('Puerto de entrada ' + str(event.port))
-    print('Puerto de salida ' + str(port))
-
+    # Armo el mensaje
     msg = of.ofp_flow_mod()
     msg.data = event.ofp
 
@@ -57,8 +56,15 @@ class SwitchController:
 
     self.connection.send(msg)
 
-  def get_port(self, route):
-    for node in route:
-      if node.dpid == self.dpid:
-        return node.port
-    raise Exception("No encuentro la ruta")
+  def process_nodes(self, route):
+    output_port = None
+    route_nodes = len(route)
+    for i in range(route_nodes-1):
+      src_node = route[i]
+      dst_node = route[i+1]
+      if src_node.dpid == self.dpid:
+        output_port = src_node.port
+      elif dst_node.dpid == self.dpid:
+        output_port = dst_node.port
+
+    return output_port
