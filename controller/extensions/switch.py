@@ -40,8 +40,9 @@ class SwitchController:
     if port is None:
       # Si llega desde un switch o host y no tengo host conectado busco la ruta
       route = self.graph.get_route(event)
-      port = self.process_nodes(route)
-
+      if not route:
+        return
+      port = self.get_output_port(route)
 
     # Armo el mensaje
     msg = of.ofp_flow_mod()
@@ -56,7 +57,7 @@ class SwitchController:
 
     self.connection.send(msg)
 
-  def process_nodes(self, route):
+  def get_output_port(self, route):
     output_port = None
     route_nodes = len(route)
     for i in range(route_nodes-1):

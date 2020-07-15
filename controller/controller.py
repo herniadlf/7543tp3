@@ -38,13 +38,23 @@ class Controller:
       sw = SwitchController(event.dpid, event.connection, self.graph)
       self.graph.add_switch(sw)
 
+  def _handle_ConnectionDown(self, event):
+    log.info("Switch %s has come down.", dpid_to_str(event.dpid))
+
+    self.graph.remove_switch(event.dpid)
+
+
+
   def _handle_LinkEvent(self, event):
     """
     Esta funcion es llamada cada vez que openflow_discovery descubre un nuevo enlace
     """
     link = event.link
-    log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1, dpid_to_str(link.dpid2), link.port2)
-    self.graph.add_link(Link(link))
+    if not event.removed:
+      log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1, dpid_to_str(link.dpid2), link.port2)
+      self.graph.add_link(Link(link))
+    else:
+      print("Link removed")
 
 def launch():
   # Inicializando el modulo openflow_discovery

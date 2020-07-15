@@ -58,6 +58,8 @@ class Graph:
 
         # si no la tengo cargada, tengo que calcular la ruta que tiene que hacer
         route = self.find_route(packet)
+        if not route:
+            return
 
         # una vez encontrada, la cargo en las rutas del grafo
         if route_to is None:
@@ -87,6 +89,8 @@ class Graph:
 
         # Busco todos los caminos que llegan al ultimo switch mediante metodo recursivo
         routes = self.build_routes(first_dpid, last_dpid, [])
+        if not routes:
+            return
 
         # Consegui varias rutas, me quedo con las que efectivamente terminan en el ultimo swtich
         # a su vez, dejo calculado en una tupla el costo de cada una de estas rutas
@@ -152,6 +156,25 @@ class Graph:
     def update_weight(self, src_node):
         switch = self.switches.get(src_node.dpid)
         switch.weight += 1
+
+    def remove_switch(self, switch_id):
+        self.links = filter(lambda link: switch_id not in [link.dpid1, link.dpid2], self.links)
+
+        for route_from, routes_to in self.routes.items():
+            for route_to, protocol_routes in routes_to.items():
+                for protocol, route in protocol_routes.items():
+                    dpids_in_route = [node.dpid for node in route]
+                    if switch_id in dpids_in_route:
+                        for dpid in dpids_in_route:
+                            switch = self.switches[dpid]
+                            switch.weight -= 1
+                        protocol_routes.pop(protocol)
+                if not protocol_routes:
+                    routes_to.pop(route_to)
+            if not routes_to:
+                self.routes.pop(route_from)
+
+        self.switches.pop(switch_id)
 
 
 class Node:
