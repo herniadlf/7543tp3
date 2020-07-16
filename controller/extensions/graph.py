@@ -157,6 +157,32 @@ class Graph:
         switch = self.switches.get(src_node.dpid)
         switch.weight += 1
 
+    def remove_link(self, link_to_be_removed):
+        self.links = filter(lambda link: link_to_be_removed != link, self.links)
+
+        first_node = Node(link_to_be_removed.dpid1, link_to_be_removed.port1)
+        second_node = Node(link_to_be_removed.dpid2, link_to_be_removed.port2)
+
+        print("first node is ", str(first_node.dpid))
+        print("second node is ", str(second_node.dpid))
+        for route_from, routes_to in self.routes.items():
+            for route_to, protocol_routes in routes_to.items():
+                for protocol, route in protocol_routes.items():
+                    linked_nodes = zip(route[:len(route)-1], route[1:])
+                    for linked_node in linked_nodes:
+                        print("linked node is ", str(linked_node[0].dpid), str(linked_node[1].dpid))
+                        if linked_node[0] == first_node and linked_node[1] == second_node:
+                            for node in route:
+                                switch = self.switches[node.dpid]
+                                switch.weight -= 1
+                            protocol_routes.pop(protocol)
+                            continue
+                if not protocol_routes:
+                    routes_to.pop(route_to)
+            if not routes_to:
+                self.routes.pop(route_from)
+
+
     def remove_switch(self, switch_id):
         self.links = filter(lambda link: switch_id not in [link.dpid1, link.dpid2], self.links)
 
@@ -185,6 +211,9 @@ class Node:
     def __str__(self):
         return str(self.dpid) + " " + str(self.port)
 
+    def __eq__(self, other):
+        return self.dpid == other.dpid
+
 class Link(object):
     def __str__(self):
         return str(self.dpid1) + " " + str(self.port1) + " " + str(self.dpid2) + " " + str(self.port2)
@@ -194,3 +223,7 @@ class Link(object):
         self.port1 = link.port1
         self.dpid2 = link.dpid2
         self.port2 = link.port2
+
+    def __eq__(self, other):
+        return self.dpid1 == other.dpid1 and self.port1 == other.port1 \
+               and self.dpid2 == other.dpid2 and self.port2 == other.port2

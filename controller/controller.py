@@ -43,8 +43,6 @@ class Controller:
 
     self.graph.remove_switch(event.dpid)
 
-
-
   def _handle_LinkEvent(self, event):
     """
     Esta funcion es llamada cada vez que openflow_discovery descubre un nuevo enlace
@@ -54,7 +52,8 @@ class Controller:
       log.info("Link has been discovered from %s,%s to %s,%s", dpid_to_str(link.dpid1), link.port1, dpid_to_str(link.dpid2), link.port2)
       self.graph.add_link(Link(link))
     else:
-      print("Link removed")
+      print("link removed")
+      self.graph.remove_link(Link(link))
 
 def launch():
   # Inicializando el modulo openflow_discovery
