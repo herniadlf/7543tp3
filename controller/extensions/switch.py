@@ -44,6 +44,7 @@ class SwitchController:
         return
       port = self.get_output_port(route)
 
+    log.info("Mando mensaje para configurar switch %s. Destino %s, origen %s, puerto origen %s, puerto destino %s", self.dpid, packet.dst, packet.src, event.port, port)
     # Armo el mensaje
     msg = of.ofp_flow_mod()
     msg.data = event.ofp
@@ -55,6 +56,12 @@ class SwitchController:
 
     msg.actions.append(of.ofp_action_output(port = port))
 
+    self.connection.send(msg)
+
+  def delete_rule_in_port(self, port):
+    log.info("Mando mensaje para eliminar info del switch. Switch %s, Puerto origen %s", self.dpid, port)
+    msg = of.ofp_flow_mod(command=of.OFPFC_DELETE)
+    msg.match.in_port = port
     self.connection.send(msg)
 
   def get_output_port(self, route):

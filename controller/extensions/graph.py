@@ -57,7 +57,7 @@ class Graph:
                     return route_to.get(packet.payload.protocol)
 
         # si no la tengo cargada, tengo que calcular la ruta que tiene que hacer
-        route = self.find_route(packet)
+        route = self.find_route(packet, event)
         if not route:
             return
 
@@ -76,7 +76,7 @@ class Graph:
 
         return route
 
-    def find_route(self, packet):
+    def find_route(self, packet, event):
         # Encuentro cual es el primer switch y el ultimo
         first_dpid = None
         last_dpid = None
@@ -88,7 +88,7 @@ class Graph:
                 last_dpid = switch.dpid
 
         # Busco todos los caminos que llegan al ultimo switch mediante metodo recursivo
-        routes = self.build_routes(first_dpid, last_dpid, [])
+        routes = self.build_routes(first_dpid, last_dpid, [], event.port)
         if not routes:
             return
 
@@ -111,7 +111,7 @@ class Graph:
         # ya me quede con una ruta, ahora queda mapear a nodos
         # actualizo el peso que tiene cada switch de la ruta
         for each_route_node in less_cost_route:
-            as_node = Node(each_route_node[0], each_route_node[1])
+            as_node = Node(each_route_node[0], each_route_node[1], each_route_node[2])
             route.append(as_node)
             self.update_weight(as_node)
 
@@ -127,26 +127,26 @@ class Graph:
         return less_cost_route[0]
 
 
-    def build_routes(self, actual_dpid, dst_dpid, visited_dpid):
+    def build_routes(self, actual_dpid, dst_dpid, visited_dpid, input_port):
         visited_dpid.append(actual_dpid)
         # Condicion de corte: Si llegue al destino, devuelvo un array solo con el destino
         if actual_dpid == dst_dpid:
-            return [[(dst_dpid, -1)]] # pongo port=-1 porque el ultimo puerto ya lo conozco
+            return [[(dst_dpid, -1, input_port)]] # pongo port=-1 porque el ultimo puerto ya lo conozco
 
         # voy recorriendo las aristas del grafo
         routes = []
         for link in self.links:
             if link.dpid1 == actual_dpid and not link.dpid2 in visited_dpid:
                 next_dpid = link.dpid2
-                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
-                    actual_route = [(actual_dpid, link.port1)]
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:], link.port2):
+                    actual_route = [(actual_dpid, link.port1, input_port)]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
             elif link.dpid2 == actual_dpid and not link.dpid1 in visited_dpid:
                 next_dpid = link.dpid1
-                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:]):
-                    actual_route = [(actual_dpid, link.port2)]
+                for route in self.build_routes(next_dpid, dst_dpid, visited_dpid[:], link.port1):
+                    actual_route = [(actual_dpid, link.port2, input_port)]
                     for dpid in route:
                         actual_route.append(dpid)
                     routes.append(actual_route)
@@ -158,25 +158,35 @@ class Graph:
         switch.weight += 1
 
     def remove_link(self, link_to_be_removed):
-        self.links = filter(lambda link: link_to_be_removed != link, self.links)
+        print("Veo cuales links quito")
+        print(link_to_be_removed)
+        self.links = filter(lambda link: not link_to_be_removed == link, self.links)
+        for link in self.links:
+            print("%s, %s", str(link), link == link_to_be_removed)
+        print("Fin")
 
         first_node = Node(link_to_be_removed.dpid1, link_to_be_removed.port1)
         second_node = Node(link_to_be_removed.dpid2, link_to_be_removed.port2)
 
-        print("first node is ", str(first_node.dpid))
-        print("second node is ", str(second_node.dpid))
         for route_from, routes_to in self.routes.items():
             for route_to, protocol_routes in routes_to.items():
                 for protocol, route in protocol_routes.items():
+                    erase = False
                     linked_nodes = zip(route[:len(route)-1], route[1:])
-                    for linked_node in linked_nodes:
-                        print("linked node is ", str(linked_node[0].dpid), str(linked_node[1].dpid))
-                        if linked_node[0] == first_node and linked_node[1] == second_node:
+                    for node1, node2 in linked_nodes:
+                        if (node1 == first_node and node2 == second_node) or (node1 == second_node and node2 == first_node):
+                            erase = True
                             for node in route:
                                 switch = self.switches[node.dpid]
                                 switch.weight -= 1
-                            protocol_routes.pop(protocol)
-                            continue
+                                switch.delete_rule_in_port(node.input_port)
+                            break        
+                    if erase:
+                        print("Rutas")
+                        print(len(protocol_routes))
+                        print("Elimino ruta desde %s, hasta %s, protocolo %s", route_from, route_to, protocol)
+                        print([node.dpid for node in protocol_routes.pop(protocol)])
+                        print(len(protocol_routes))
                 if not protocol_routes:
                     routes_to.pop(route_to)
             if not routes_to:
@@ -204,9 +214,10 @@ class Graph:
 
 
 class Node:
-    def __init__(self, dpid, port=None):
+    def __init__(self, dpid, port=None, input_port=None):
         self.dpid = dpid
         self.port = port
+        self.input_port = input_port
 
     def __str__(self):
         return str(self.dpid) + " " + str(self.port)
@@ -225,5 +236,7 @@ class Link(object):
         self.port2 = link.port2
 
     def __eq__(self, other):
-        return self.dpid1 == other.dpid1 and self.port1 == other.port1 \
-               and self.dpid2 == other.dpid2 and self.port2 == other.port2
+        return (self.dpid1 == other.dpid1 and self.port1 == other.port1 \
+               and self.dpid2 == other.dpid2 and self.port2 == other.port2) \
+               or (self.dpid2 == other.dpid1 and self.port2 == other.port1 \
+               and self.dpid1 == other.dpid2 and self.port1 == other.port2)
